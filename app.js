@@ -18,7 +18,7 @@ const viewsRouter = require('./routes/viewsRoutes')
 const bookingRouter = require('./routes/bookingRoutes')
 
 
-
+// START EXPRESS APP
 const app = express()
 
 app.set('view engine', 'pug')
