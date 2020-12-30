@@ -12,17 +12,16 @@ const signToken = id => {
   })
 }
 
-const createSendToken = (user, statusCode, res) => {
+const createSendToken = (user, statusCode, req, res) => {
   const token = signToken(user._id)
-  const cookieOptions = {
+
+  res.cookie('jwt', token, {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
-    // secure: true,
-    httpOnly: true
-  }
-  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true
-  res.cookie('jwt', token, cookieOptions)
+    httpOnly: true,
+    secure: req.secure || req.headers['x-forwarded-proto'] === 'https'
+  })
 
   // REMOVE PASSWORD FROM OUTPUT
   user.password = undefined
@@ -48,7 +47,7 @@ exports.signup = catchAsync(async (req, res, next) => {
 
   const url = `${req.protocol}://${req.get('host')}/me`
   await new Email(newUser, url).sendWelcome()
-  createSendToken(newUser, 201, res)
+  createSendToken(newUser, 201, req, res)
 })
 
 exports.login = catchAsync(async (req, res, next) => {
@@ -64,7 +63,7 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError('Incorrect email or password', 401))
   }
   // Send token
-  createSendToken(user, 200, res)
+  createSendToken(user, 200, req, res)
 })
 
 exports.logout = (req, res) => {
@@ -72,7 +71,7 @@ exports.logout = (req, res) => {
     expires: new Date(Date.now() * 10 * 1000),
     httpOnly: true
   })
-  res.status(200).json({ status: 'success'})
+  res.status(200).json({ status: 'success' })
 }
 
 exports.protect = catchAsync(async (req, res, next) => {
@@ -86,7 +85,7 @@ exports.protect = catchAsync(async (req, res, next) => {
   } else if (req.cookies.jwt) {
     token = req.cookies.jwt
   }
-  
+
   if (!token) {
     return next(
       new AppError('You are not logged in! Please log in to access.', 401)
@@ -140,13 +139,13 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   await user.save({ validateBeforeSave: false })
 
   // 3) SEND IT TO USER'S EMAIL
-  
+
   // const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to ${resetURL}\nIf you didn't submit this request, please ignore this email.`
-  
+
   try {
     const resetURL = `${req.protocol}://${req.get(
-    'host'
-  )}/api/v1/users/resetPassword/${resetToken}`
+      'host'
+    )}/api/v1/users/resetPassword/${resetToken}`
     await new Email(user, resetURL).sendPasswordReset()
     res.status(200).json({
       status: 'success',
@@ -189,7 +188,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 
   // 3) UPDATE ChangedPasswordAt PROPERTY - Done in usermodel
   // 4) LOG THE USER IN, SEND JWT
-  createSendToken(user, 200, res)
+  createSendToken(user, 200, req, res)
 })
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
@@ -207,24 +206,26 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   await user.save()
 
   // 4) LOG USER IN, SEND JWT
-  createSendToken(user, 200, res)
+  createSendToken(user, 200, req, res)
 })
 
 // Only for rendered pages, no errors
 exports.isLoggedIn = async (req, res, next) => {
-  
   try {
     if (req.cookies.jwt) {
-      const decoded = await promisify(jwt.verify)(req.cookies.jwt, process.env.JWT_SECRET)
+      const decoded = await promisify(jwt.verify)(
+        req.cookies.jwt,
+        process.env.JWT_SECRET
+      )
       const currentUser = await User.findById(decoded.id)
       if (!currentUser) {
         return next()
       }
-  
+
       if (currentUser.changedPasswordAfter(decoded.iat)) {
         return next()
       }
-  
+
       res.locals.user = currentUser
       return next()
     }
