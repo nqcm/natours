@@ -17,7 +17,6 @@ const reviewRouter = require('./routes/reviewRoutes')
 const viewsRouter = require('./routes/viewsRoutes')
 const bookingRouter = require('./routes/bookingRoutes')
 
-
 // START EXPRESS APP
 const app = express()
 
@@ -31,12 +30,9 @@ app.set('views', path.join(__dirname, 'views'))
 // SERVING STATIC FILES
 app.use(express.static(path.join(__dirname, 'public')))
 
-app.use(
-  cors({
-    origin: 'http://localhost:3000',
-    credentials: true,
-  })
-)
+app.use(cors())
+
+app.options('*', cors())
 
 // SET SECURITY HTTP HEADERS
 // app.use(helmet())
@@ -48,8 +44,8 @@ app.use(
       baseUri: ["'self'"],
       fontSrc: ["'self'", 'https:', 'http:', 'data:'],
       scriptSrc: ["'self'", 'https:', 'http:', 'blob:'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https:', 'http:'],
-    },
+      styleSrc: ["'self'", "'unsafe-inline'", 'https:', 'http:']
+    }
   })
 )
 
@@ -67,7 +63,7 @@ app.use('/api', limiter)
 
 // BODY PARSER, READING DATA FROM BODY INTO REQ.BODY
 app.use(express.json({ limit: '10kb' }))
-app.use(express.urlencoded({ extended: true, limit: '10kb'}))
+app.use(express.urlencoded({ extended: true, limit: '10kb' }))
 app.use(cookieParser())
 
 // DATA SANITISATION AGAINST NoSQL QUERY INJECTION
@@ -105,8 +101,6 @@ app.use('/api/v1/tours', tourRouter)
 app.use('/api/v1/users', userRouter)
 app.use('/api/v1/reviews', reviewRouter)
 app.use('/api/v1/bookings', bookingRouter)
-
-
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404))
